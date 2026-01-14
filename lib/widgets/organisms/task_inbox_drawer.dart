@@ -4,14 +4,26 @@ import '../../models/inbox_task.dart';
 import '../molecules/task_inbox_item.dart';
 
 class TaskInboxDrawer extends StatelessWidget {
-  const TaskInboxDrawer({super.key, required this.tasks});
+  const TaskInboxDrawer({
+    super.key,
+    required this.tasks,
+    required this.onAddTaskRequested,
+    required this.onDragStarted,
+    required this.onDeleteTask,
+    this.onClose,
+  });
 
   final List<InboxTask> tasks;
+  final VoidCallback onAddTaskRequested;
+  final VoidCallback onDragStarted;
+  final void Function(String taskId) onDeleteTask;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
-    return Drawer(
+    return Container(
       width: 320,
+      color: const Color(0xFFF7F4EF),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -27,10 +39,11 @@ class TaskInboxDrawer extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.search),
-                    onPressed: () {},
-                  ),
+                  if (onClose != null)
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: onClose,
+                    ),
                 ],
               ),
               const SizedBox(height: 24),
@@ -49,7 +62,11 @@ class TaskInboxDrawer extends StatelessWidget {
                   itemCount: tasks.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    return TaskInboxItem(task: tasks[index]);
+                    return TaskInboxItem(
+                      task: tasks[index],
+                      onDragStarted: onDragStarted,
+                      onDelete: () => onDeleteTask(tasks[index].id),
+                    );
                   },
                 ),
               ),
@@ -57,7 +74,7 @@ class TaskInboxDrawer extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: onAddTaskRequested,
                   icon: const Icon(Icons.add),
                   label: const Text('Add task'),
                   style: ElevatedButton.styleFrom(

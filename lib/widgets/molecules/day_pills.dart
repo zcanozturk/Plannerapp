@@ -4,10 +4,16 @@ import '../../models/planner_day.dart';
 import '../atoms/day_pill.dart';
 
 class DayPills extends StatelessWidget {
-  const DayPills({super.key, required this.days, this.compact = false});
+  const DayPills({
+    super.key,
+    required this.days,
+    this.compact = false,
+    this.onDaySelected,
+  });
 
   final List<PlannerDay> days;
   final bool compact;
+  final ValueChanged<int>? onDaySelected;
 
   @override
   Widget build(BuildContext context) {
@@ -17,8 +23,11 @@ class DayPills extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         itemCount: days.length,
         separatorBuilder: (_, __) => SizedBox(width: compact ? 6 : 12),
-        itemBuilder: (context, index) =>
-            DayPill(day: days[index], compact: compact),
+        itemBuilder: (context, index) => DayPill(
+          day: days[index],
+          compact: compact,
+          onTap: onDaySelected == null ? null : () => onDaySelected!(index),
+        ),
       ),
     );
   }

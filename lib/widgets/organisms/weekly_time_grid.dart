@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/inbox_task.dart';
 import '../../models/planner_task.dart';
 import '../../viewmodels/planner_view_model.dart';
 import '../molecules/task_card.dart';
@@ -11,12 +12,14 @@ class WeeklyTimeGrid extends StatelessWidget {
     required this.onTaskTap,
     required this.onTaskResize,
     required this.onTaskResizeStart,
+    required this.onInboxTaskDropped,
   });
 
   final List<TaskLayout> layouts;
   final ValueChanged<PlannerTask> onTaskTap;
   final void Function(PlannerTask task, int deltaMinutes) onTaskResize;
   final void Function(PlannerTask task, int deltaMinutes) onTaskResizeStart;
+  final void Function(InboxTask task, int startMinutes) onInboxTaskDropped;
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +28,7 @@ class WeeklyTimeGrid extends StatelessWidget {
     final totalSlots = endHour - startHour + 1;
     const headerHeight = 28.0 + 12.0;
     const containerPadding = 12.0;
+    final gridKey = GlobalKey();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -73,60 +77,81 @@ class WeeklyTimeGrid extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          color: const Color(0xFFF9F7F3),
-                        ),
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            const horizontalPadding = 8.0;
-                            const gap = 8.0;
-                            return Stack(
-                              children: [
-                                for (int i = 0; i < totalSlots; i++)
-                                  Positioned(
-                                    top: i * slotHeight,
-                                    left: 0,
-                                    right: 0,
-                                    child: Container(
-                                      height: 1,
-                                      color: const Color(0xFFE3DED7),
-                                    ),
-                                  ),
-                                for (final layout in layouts)
-                                  Positioned(
-                                    top: layout.task
-                                        .offsetTop(startHour, slotHeight),
-                                    left: horizontalPadding +
-                                        layout.column *
-                                            ((constraints.maxWidth -
-                                                    (2 * horizontalPadding) -
-                                                    gap * (layout.columnCount - 1)) /
-                                                layout.columnCount +
-                                                gap),
-                                    width: (constraints.maxWidth -
-                                            (2 * horizontalPadding) -
-                                            gap * (layout.columnCount - 1)) /
-                                        layout.columnCount,
-                                    child: GestureDetector(
-                                      onTap: () => onTaskTap(layout.task),
-                                      child: TaskCard(
-                                        task: layout.task,
-                                        slotHeight: slotHeight,
-                                        onResizeMinutes: (deltaMinutes) =>
-                                            onTaskResize(
-                                                layout.task, deltaMinutes),
-                                        onResizeStartMinutes: (deltaMinutes) =>
-                                            onTaskResizeStart(
-                                                layout.task, deltaMinutes),
+                      child: DragTarget<InboxTask>(
+                        onAcceptWithDetails: (details) {
+                          final box = gridKey.currentContext
+                              ?.findRenderObject() as RenderBox?;
+                          if (box == null) {
+                            return;
+                          }
+                          final local = box.globalToLocal(details.offset);
+                          final minutesFromStart =
+                              (local.dy / slotHeight) * 60;
+                          final startMinutes =
+                              (startHour * 60) + minutesFromStart.round();
+                          onInboxTaskDropped(details.data, startMinutes);
+                        },
+                        builder: (context, _, __) {
+                          return Container(
+                            key: gridKey,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              color: const Color(0xFFF9F7F3),
+                            ),
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                const horizontalPadding = 8.0;
+                                const gap = 8.0;
+                                return Stack(
+                                  children: [
+                                    for (int i = 0; i < totalSlots; i++)
+                                      Positioned(
+                                        top: i * slotHeight,
+                                        left: 0,
+                                        right: 0,
+                                        child: Container(
+                                          height: 1,
+                                          color: const Color(0xFFE3DED7),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
+                                    for (final layout in layouts)
+                                      Positioned(
+                                        top: layout.task
+                                            .offsetTop(startHour, slotHeight),
+                                        left: horizontalPadding +
+                                            layout.column *
+                                                ((constraints.maxWidth -
+                                                        (2 * horizontalPadding) -
+                                                        gap * (layout.columnCount - 1)) /
+                                                    layout.columnCount +
+                                                    gap),
+                                        width: (constraints.maxWidth -
+                                                (2 * horizontalPadding) -
+                                                gap * (layout.columnCount - 1)) /
+                                            layout.columnCount,
+                                        child: GestureDetector(
+                                          onTap: () => onTaskTap(layout.task),
+                                          child: TaskCard(
+                                            key: ValueKey(layout.task.id),
+                                            task: layout.task,
+                                            slotHeight: slotHeight,
+                                            onResizeMinutes: (deltaMinutes) =>
+                                                onTaskResize(
+                                                    layout.task, deltaMinutes),
+                                            onResizeStartMinutes:
+                                                (deltaMinutes) =>
+                                                    onTaskResizeStart(
+                                                        layout.task,
+                                                        deltaMinutes),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],

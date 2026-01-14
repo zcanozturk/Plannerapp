@@ -9,24 +9,80 @@ import '../services/task_storage_service.dart';
 class PlannerViewModel extends ChangeNotifier {
   PlannerViewModel({TaskStorageService? storageService})
       : _storageService = storageService ?? TaskStorageService() {
+    _setWeek(DateTime.now());
     _seedDefaults();
   }
 
   final TaskStorageService _storageService;
 
-  final List<PlannerDay> days = const [
-    PlannerDay(label: 'Mon', date: '11'),
-    PlannerDay(label: 'Tue', date: '12'),
-    PlannerDay(label: 'Wed', date: '13', isActive: true),
-    PlannerDay(label: 'Thu', date: '14'),
-    PlannerDay(label: 'Fri', date: '15'),
-    PlannerDay(label: 'Sat', date: '16'),
-    PlannerDay(label: 'Sun', date: '17'),
-  ];
+  DateTime _weekStart = DateTime.now();
+  List<PlannerDay> days = [];
+  int _activeDayIndex = 0;
+
+  String get weekTitle {
+    return '${_monthName(_weekStart.month)} ${_weekStart.year}';
+  }
+
+  String get weekSubtitle {
+    return 'Week ${_isoWeekNumber(_weekStart)}';
+  }
+
+  String get selectedDateKey {
+    return _dateKey(_weekStart.add(Duration(days: _activeDayIndex)));
+  }
 
   List<PlannerTask> scheduledTasks = [];
 
   List<InboxTask> inboxTasks = [];
+
+  void nextWeek() {
+    _setWeek(_weekStart.add(const Duration(days: 7)));
+    notifyListeners();
+  }
+
+  void previousWeek() {
+    _setWeek(_weekStart.subtract(const Duration(days: 7)));
+    notifyListeners();
+  }
+
+  void setWeek(DateTime date) {
+    _setWeek(date);
+    notifyListeners();
+  }
+
+  void selectDay(int index) {
+    if (index < 0 || index >= days.length) {
+      return;
+    }
+    _activeDayIndex = index;
+    days = _applyActiveDay(days, _activeDayIndex);
+    notifyListeners();
+  }
+
+  void scheduleInboxTask(InboxTask task, int startMinutes) {
+    final rounded = _roundToQuarterHour(startMinutes);
+    final maxStart = (24 * 60) - 15;
+    final clampedStart = rounded.clamp(0, maxStart);
+    final startHour = clampedStart ~/ 60;
+    final startMinute = clampedStart % 60;
+    final palette = _paletteForIndex(scheduledTasks.length);
+    final newTask = PlannerTask(
+      id: 'task-${DateTime.now().millisecondsSinceEpoch}',
+      title: task.title,
+      subtitle: '',
+      startHour: startHour,
+      startMinute: startMinute,
+      durationMinutes: 120,
+      color: palette.$1,
+      accent: palette.$2,
+      priority: 'Scheduled',
+      date: selectedDateKey,
+      notes: '',
+    );
+    scheduledTasks = [...scheduledTasks, newTask];
+    _storageService.saveScheduledTasks(scheduledTasks);
+    notifyListeners();
+  }
 
   void _seedDefaults() {
     scheduledTasks = [
@@ -40,6 +96,8 @@ class PlannerViewModel extends ChangeNotifier {
         color: Color(0xFFF6D8BF),
         accent: Color(0xFFDD8E5F),
         priority: 'High priority',
+        date: selectedDateKey,
+        notes: '',
       ),
       PlannerTask(
         id: 'task-2',
@@ -51,6 +109,8 @@ class PlannerViewModel extends ChangeNotifier {
         color: Color(0xFFE2F2EF),
         accent: Color(0xFF2D9C92),
         priority: 'Working',
+        date: selectedDateKey,
+        notes: '',
       ),
       PlannerTask(
         id: 'task-3',
@@ -62,6 +122,8 @@ class PlannerViewModel extends ChangeNotifier {
         color: Color(0xFFEAF1E6),
         accent: Color(0xFF7FA96A),
         priority: 'Done',
+        date: selectedDateKey,
+        notes: '',
       ),
       PlannerTask(
         id: 'task-4',
@@ -73,25 +135,109 @@ class PlannerViewModel extends ChangeNotifier {
         color: Color(0xFFF2EEE8),
         accent: Color(0xFFB7A89C),
         priority: 'Reset',
+        date: selectedDateKey,
+        notes: '',
       ),
     ];
     inboxTasks = const [
       InboxTask(
         id: 'inbox-1',
         title: 'Review quarterly budget',
-        subtitle: 'High priority',
+        subtitle: '',
       ),
       InboxTask(
         id: 'inbox-2',
         title: 'Call landlord',
-        subtitle: 'Rent increase follow-up',
+        subtitle: '',
       ),
       InboxTask(
         id: 'inbox-3',
         title: 'Weekly sync preparation',
-        subtitle: 'Update project board',
+        subtitle: '',
       ),
     ];
+  }
+
+  void _setWeek(DateTime date) {
+    _weekStart = _startOfWeek(date);
+    final nextDays = _buildDaysForWeek(_weekStart);
+    days = _applyActiveDay(nextDays, _activeDayIndex);
+  }
+
+  List<PlannerDay> _buildDaysForWeek(DateTime weekStart) {
+    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final today = _dateOnly(DateTime.now());
+    final start = _dateOnly(weekStart);
+    final end = start.add(const Duration(days: 7));
+    final isThisWeek = !today.isBefore(start) && today.isBefore(end);
+    _activeDayIndex = isThisWeek ? today.difference(start).inDays : 0;
+    return List.generate(7, (index) {
+      final date = start.add(Duration(days: index));
+      return PlannerDay(
+        label: labels[index],
+        date: date.day.toString(),
+        isActive: index == _activeDayIndex,
+      );
+    });
+  }
+
+  List<PlannerDay> _applyActiveDay(List<PlannerDay> source, int index) {
+    return List.generate(
+      source.length,
+      (i) => source[i].copyWith(isActive: i == index),
+    );
+  }
+
+  DateTime _startOfWeek(DateTime date) {
+    final normalized = _dateOnly(date);
+    return normalized.subtract(Duration(days: normalized.weekday - 1));
+  }
+
+  DateTime _dateOnly(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
+
+  String _dateKey(DateTime date) {
+    return '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+  }
+
+  int _isoWeekNumber(DateTime date) {
+    final normalized = _dateOnly(date);
+    final thursday = normalized.add(Duration(days: 4 - normalized.weekday));
+    final firstThursday = DateTime(thursday.year, 1, 4);
+    final firstWeekStart =
+        firstThursday.subtract(Duration(days: firstThursday.weekday - 1));
+    return ((thursday.difference(firstWeekStart).inDays) / 7).floor() + 1;
+  }
+
+  (Color, Color) _paletteForIndex(int index) {
+    const palettes = [
+      (Color(0xFFE2F2EF), Color(0xFF2D9C92)),
+      (Color(0xFFF6D8BF), Color(0xFFDD8E5F)),
+      (Color(0xFFEAF1E6), Color(0xFF7FA96A)),
+      (Color(0xFFF2EEE8), Color(0xFFB7A89C)),
+    ];
+    return palettes[index % palettes.length];
+  }
+
+  String _monthName(int month) {
+    const names = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return names[(month - 1).clamp(0, names.length - 1)];
   }
 
   Future<void> initialize() async {
@@ -107,7 +253,10 @@ class PlannerViewModel extends ChangeNotifier {
   }
 
   List<TaskLayout> buildLayouts() {
-    final sorted = [...scheduledTasks]
+    final visibleTasks = scheduledTasks
+        .where((task) => task.date == selectedDateKey)
+        .toList();
+    final sorted = [...visibleTasks]
       ..sort((a, b) => a.startTotalMinutes.compareTo(b.startTotalMinutes));
     final layouts = <TaskLayout>[];
     final active = <TaskLayout>[];

@@ -1,8 +1,21 @@
 import 'package:flutter/material.dart';
 
 class WeekHeader extends StatelessWidget {
-  const WeekHeader({super.key, this.compact = false});
+  const WeekHeader({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    this.onPreviousWeek,
+    this.onNextWeek,
+    this.onCalendarTap,
+    this.compact = false,
+  });
 
+  final String title;
+  final String subtitle;
+  final VoidCallback? onPreviousWeek;
+  final VoidCallback? onNextWeek;
+  final VoidCallback? onCalendarTap;
   final bool compact;
 
   @override
@@ -14,7 +27,7 @@ class WeekHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'September 2023',
+                title,
                 style: TextStyle(
                   fontSize: compact ? 16 : 24,
                   fontWeight: FontWeight.w700,
@@ -22,7 +35,7 @@ class WeekHeader extends StatelessWidget {
               ),
               SizedBox(height: compact ? 2 : 6),
               Text(
-                'Week 37',
+                subtitle,
                 style: TextStyle(
                   color: Color(0xFF6B6B6B),
                   fontSize: compact ? 10 : 14,
@@ -32,8 +45,26 @@ class WeekHeader extends StatelessWidget {
           ),
         ),
         IconButton(
+          icon: const Icon(Icons.chevron_left),
+          onPressed: onPreviousWeek,
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.white,
+          ),
+          iconSize: compact ? 16 : 24,
+        ),
+        SizedBox(width: compact ? 4 : 8),
+        IconButton(
+          icon: const Icon(Icons.chevron_right),
+          onPressed: onNextWeek,
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.white,
+          ),
+          iconSize: compact ? 16 : 24,
+        ),
+        SizedBox(width: compact ? 4 : 8),
+        IconButton(
           icon: const Icon(Icons.calendar_month),
-          onPressed: () {},
+          onPressed: onCalendarTap,
           style: IconButton.styleFrom(
             backgroundColor: Colors.white,
           ),

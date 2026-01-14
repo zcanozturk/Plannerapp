@@ -22,47 +22,103 @@ class TaskCard extends StatefulWidget {
 }
 
 class _TaskCardState extends State<TaskCard> {
-  double _dragAccumulator = 0;
+  double _dragAccumulatorBottom = 0;
+  double _dragAccumulatorTop = 0;
+  int _previewDurationDeltaMinutes = 0;
+  int _previewStartDeltaMinutes = 0;
 
-  void _handleDragStart(DragStartDetails details) {
-    _dragAccumulator = 0;
+  void _handleBottomDragStart(DragStartDetails details) {
+    _dragAccumulatorBottom = 0;
+    _previewDurationDeltaMinutes = 0;
   }
 
-  void _handleVerticalDragUpdate(DragUpdateDetails details) {
+  void _handleBottomDragUpdate(DragUpdateDetails details) {
     if (widget.onResizeMinutes == null) {
       return;
     }
     final stepHeight = widget.slotHeight / 4;
-    _dragAccumulator += details.delta.dy;
-    final steps = (_dragAccumulator / stepHeight).truncate();
+    _dragAccumulatorBottom += details.delta.dy;
+    final steps = (_dragAccumulatorBottom / stepHeight).truncate();
     if (steps != 0) {
-      widget.onResizeMinutes?.call(steps * 15);
-      _dragAccumulator -= steps * stepHeight;
+      _dragAccumulatorBottom -= steps * stepHeight;
+      _previewDurationDeltaMinutes += steps * 15;
+      final clamped =
+          (widget.task.durationMinutes + _previewDurationDeltaMinutes)
+              .clamp(15, 720);
+      setState(() {
+        _previewDurationDeltaMinutes =
+            clamped - widget.task.durationMinutes;
+      });
     }
   }
 
-  void _handleDragEnd(DragEndDetails details) {
-    _dragAccumulator = 0;
+  void _handleBottomDragEnd(DragEndDetails details) {
+    if (_previewDurationDeltaMinutes != 0) {
+      widget.onResizeMinutes?.call(_previewDurationDeltaMinutes);
+    }
+    _dragAccumulatorBottom = 0;
+    _previewDurationDeltaMinutes = 0;
   }
 
-  void _handleVerticalDragUpdateTop(DragUpdateDetails details) {
+  void _handleTopDragStart(DragStartDetails details) {
+    _dragAccumulatorTop = 0;
+    _previewStartDeltaMinutes = 0;
+  }
+
+  void _handleTopDragUpdate(DragUpdateDetails details) {
     if (widget.onResizeStartMinutes == null) {
       return;
     }
     final stepHeight = widget.slotHeight / 4;
-    _dragAccumulator += details.delta.dy;
-    final steps = (_dragAccumulator / stepHeight).truncate();
+    _dragAccumulatorTop += details.delta.dy;
+    final steps = (_dragAccumulatorTop / stepHeight).truncate();
     if (steps != 0) {
-      widget.onResizeStartMinutes?.call(steps * 15);
-      _dragAccumulator -= steps * stepHeight;
+      _dragAccumulatorTop -= steps * stepHeight;
+      _previewStartDeltaMinutes += steps * 15;
+      final baseStart = widget.task.startTotalMinutes;
+      final baseEnd = widget.task.endTotalMinutes;
+      final proposedStart = baseStart + _previewStartDeltaMinutes;
+      final clampedStart = proposedStart.clamp(0, baseEnd - 15);
+      setState(() {
+        _previewStartDeltaMinutes = clampedStart - baseStart;
+      });
+    }
+  }
+
+  void _handleTopDragEnd(DragEndDetails details) {
+    if (_previewStartDeltaMinutes != 0) {
+      widget.onResizeStartMinutes?.call(_previewStartDeltaMinutes);
+    }
+    _dragAccumulatorTop = 0;
+    _previewStartDeltaMinutes = 0;
+  }
+
+  @override
+  void didUpdateWidget(TaskCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.task.id != widget.task.id) {
+      _dragAccumulatorBottom = 0;
+      _dragAccumulatorTop = 0;
+      _previewDurationDeltaMinutes = 0;
+      _previewStartDeltaMinutes = 0;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final baseHeight = widget.task.height(widget.slotHeight);
+    final previewDurationDelta = _previewStartDeltaMinutes != 0
+        ? -_previewStartDeltaMinutes
+        : _previewDurationDeltaMinutes;
+    final previewHeight =
+        baseHeight + (previewDurationDelta / 60) * widget.slotHeight;
+    final previewOffset =
+        (_previewStartDeltaMinutes / 60) * widget.slotHeight;
     return SizedBox(
-      height: widget.task.height(widget.slotHeight),
-      child: LayoutBuilder(
+      height: previewHeight,
+      child: Transform.translate(
+        offset: Offset(0, previewOffset),
+        child: LayoutBuilder(
         builder: (context, constraints) {
           final height = constraints.maxHeight;
           final ultraCompact = height < 60;
@@ -133,9 +189,9 @@ class _TaskCardState extends State<TaskCard> {
                             bottom: 0,
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
-                        onVerticalDragStart: _handleDragStart,
-                        onVerticalDragUpdate: _handleVerticalDragUpdate,
-                        onVerticalDragEnd: _handleDragEnd,
+                              onVerticalDragStart: _handleBottomDragStart,
+                              onVerticalDragUpdate: _handleBottomDragUpdate,
+                              onVerticalDragEnd: _handleBottomDragEnd,
                               child: ResizeHandle(
                                 color: widget.task.accent,
                                 compact: compact,
@@ -149,9 +205,9 @@ class _TaskCardState extends State<TaskCard> {
                       top: 0,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onVerticalDragStart: _handleDragStart,
-                        onVerticalDragUpdate: _handleVerticalDragUpdateTop,
-                        onVerticalDragEnd: _handleDragEnd,
+                        onVerticalDragStart: _handleTopDragStart,
+                        onVerticalDragUpdate: _handleTopDragUpdate,
+                        onVerticalDragEnd: _handleTopDragEnd,
                         child: ResizeHandle(
                           color: widget.task.accent,
                           compact: true,
@@ -164,6 +220,7 @@ class _TaskCardState extends State<TaskCard> {
             ),
           );
         },
+      ),
       ),
     );
   }

@@ -8,4 +8,12 @@ class PlannerDay {
   final String label;
   final String date;
   final bool isActive;
+
+  PlannerDay copyWith({bool? isActive}) {
+    return PlannerDay(
+      label: label,
+      date: date,
+      isActive: isActive ?? this.isActive,
+    );
+  }
 }

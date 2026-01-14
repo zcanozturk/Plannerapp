@@ -11,6 +11,8 @@ class PlannerTask {
     required this.color,
     required this.accent,
     required this.priority,
+    required this.date,
+    required this.notes,
   });
 
   final String id;
@@ -22,6 +24,8 @@ class PlannerTask {
   final Color color;
   final Color accent;
   final String priority;
+  final String date;
+  final String notes;
 
   Map<String, dynamic> toJson() {
     return {
@@ -34,10 +38,14 @@ class PlannerTask {
       'color': color.value,
       'accent': accent.value,
       'priority': priority,
+      'date': date,
+      'notes': notes,
     };
   }
 
   factory PlannerTask.fromJson(Map<String, dynamic> json) {
+    final dateValue = json['date'] as String?;
+    final notesValue = json['notes'] as String?;
     return PlannerTask(
       id: json['id'] as String,
       title: json['title'] as String,
@@ -48,6 +56,8 @@ class PlannerTask {
       color: Color(json['color'] as int),
       accent: Color(json['accent'] as int),
       priority: json['priority'] as String,
+      date: dateValue ?? _todayKey(),
+      notes: notesValue ?? '',
     );
   }
 
@@ -55,6 +65,8 @@ class PlannerTask {
     int? startHour,
     int? startMinute,
     int? durationMinutes,
+    String? date,
+    String? notes,
   }) {
     return PlannerTask(
       id: id,
@@ -66,7 +78,16 @@ class PlannerTask {
       color: color,
       accent: accent,
       priority: priority,
+      date: date ?? this.date,
+      notes: notes ?? this.notes,
     );
+  }
+
+  static String _todayKey() {
+    final now = DateTime.now();
+    return '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
   }
 
   int get startTotalMinutes => startHour * 60 + startMinute;
