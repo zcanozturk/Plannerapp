@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'views/planner_home_view.dart';
+import 'views/root_view.dart';
 
 class PlannerApp extends StatelessWidget {
   const PlannerApp({super.key});
@@ -19,7 +19,7 @@ class PlannerApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFF1ECE6),
         useMaterial3: true,
       ),
-      home: const PlannerHomeView(),
+      home: const RootView(),
     );
   }
 }

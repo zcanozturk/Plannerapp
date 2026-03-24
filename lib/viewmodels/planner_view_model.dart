@@ -59,12 +59,9 @@ class PlannerViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void scheduleInboxTask(InboxTask task, int startMinutes) {
-    final rounded = _roundToQuarterHour(startMinutes);
-    final maxStart = (24 * 60) - 15;
-    final clampedStart = rounded.clamp(0, maxStart);
-    final startHour = clampedStart ~/ 60;
-    final startMinute = clampedStart % 60;
+  void scheduleInboxTask(InboxTask task) {
+    const startHour = 9;
+    const startMinute = 0;
     final palette = _paletteForIndex(scheduledTasks.length);
     final newTask = PlannerTask(
       id: 'task-${DateTime.now().millisecondsSinceEpoch}',
@@ -72,7 +69,7 @@ class PlannerViewModel extends ChangeNotifier {
       subtitle: '',
       startHour: startHour,
       startMinute: startMinute,
-      durationMinutes: 120,
+      durationMinutes: 60,
       color: palette.$1,
       accent: palette.$2,
       priority: 'Scheduled',
@@ -81,6 +78,8 @@ class PlannerViewModel extends ChangeNotifier {
     );
     scheduledTasks = [...scheduledTasks, newTask];
     _storageService.saveScheduledTasks(scheduledTasks);
+    inboxTasks = inboxTasks.where((item) => item.id != task.id).toList();
+    _storageService.saveInboxTasks(inboxTasks);
     notifyListeners();
   }
 
@@ -298,6 +297,44 @@ class PlannerViewModel extends ChangeNotifier {
       closeGroup();
     }
     return layouts;
+  }
+
+  List<PlannerTask> tasksForSelectedDay() {
+    return scheduledTasks
+        .where((task) => task.date == selectedDateKey)
+        .toList();
+  }
+
+  void reorderSelectedDayTasks(int oldIndex, int newIndex) {
+    final dateKey = selectedDateKey;
+    final indices = <int>[];
+    final dayTasks = <PlannerTask>[];
+    for (var i = 0; i < scheduledTasks.length; i++) {
+      final task = scheduledTasks[i];
+      if (task.date == dateKey) {
+        indices.add(i);
+        dayTasks.add(task);
+      }
+    }
+    if (oldIndex < 0 ||
+        oldIndex >= dayTasks.length ||
+        newIndex < 0 ||
+        newIndex > dayTasks.length) {
+      return;
+    }
+    var adjustedNewIndex = newIndex;
+    if (adjustedNewIndex > oldIndex) {
+      adjustedNewIndex -= 1;
+    }
+    final moved = dayTasks.removeAt(oldIndex);
+    dayTasks.insert(adjustedNewIndex, moved);
+    final updated = [...scheduledTasks];
+    for (var i = 0; i < indices.length; i++) {
+      updated[indices[i]] = dayTasks[i];
+    }
+    scheduledTasks = updated;
+    _storageService.saveScheduledTasks(scheduledTasks);
+    notifyListeners();
   }
 
   PlannerTask? getTaskById(String taskId) {

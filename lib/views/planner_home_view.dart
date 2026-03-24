@@ -7,7 +7,7 @@ import '../widgets/molecules/day_pills.dart';
 import '../widgets/molecules/week_header.dart';
 import '../widgets/organisms/task_detail_overlay.dart';
 import '../widgets/organisms/task_inbox_drawer.dart';
-import '../widgets/organisms/weekly_time_grid.dart';
+import '../widgets/organisms/daily_task_list.dart';
 
 class PlannerHomeView extends StatefulWidget {
   const PlannerHomeView({super.key});
@@ -133,11 +133,10 @@ class _PlannerHomeViewState extends State<PlannerHomeView> {
                         ),
                         const SizedBox(height: 8),
                         Expanded(
-                          child: WeeklyTimeGrid(
-                            layouts: viewModel.buildLayouts(),
+                          child: DailyTaskList(
+                            tasks: viewModel.tasksForSelectedDay(),
                             onTaskTap: (task) => _openTaskDetails(context, task),
-                            onTaskResize: viewModel.resizeTask,
-                            onTaskResizeStart: viewModel.resizeTaskStart,
+                            onReorder: viewModel.reorderSelectedDayTasks,
                             onInboxTaskDropped: viewModel.scheduleInboxTask,
                           ),
                         ),

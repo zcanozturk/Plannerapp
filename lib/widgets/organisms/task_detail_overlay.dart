@@ -36,33 +36,6 @@ class _TaskDetailOverlayState extends State<TaskDetailOverlay> {
     super.dispose();
   }
 
-  String _formatTime(BuildContext context, int minutes) {
-    final time = TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60);
-    return MaterialLocalizations.of(context).formatTimeOfDay(time);
-  }
-
-  Future<void> _pickStartTime(BuildContext context, PlannerTask task) async {
-    final initial = TimeOfDay(hour: task.startHour, minute: task.startMinute);
-    final selected = await showTimePicker(
-      context: context,
-      initialTime: initial,
-    );
-    if (selected != null) {
-      widget.viewModel.setTaskStartTime(task.id, selected);
-    }
-  }
-
-  Future<void> _pickEndTime(BuildContext context, PlannerTask task) async {
-    final endMinutes = task.endTotalMinutes;
-    final initial = TimeOfDay(hour: endMinutes ~/ 60, minute: endMinutes % 60);
-    final selected = await showTimePicker(
-      context: context,
-      initialTime: initial,
-    );
-    if (selected != null) {
-      widget.viewModel.setTaskEndTime(task.id, selected);
-    }
-  }
 
   void _saveNotes(PlannerTask task) {
     final updated = task.copyWith(notes: _notesController.text.trim());
@@ -87,8 +60,6 @@ class _TaskDetailOverlayState extends State<TaskDetailOverlay> {
         if (!_notesFocus.hasFocus && _notesController.text != task.notes) {
           _notesController.text = task.notes;
         }
-        final startMinutes = task.startTotalMinutes;
-        final endMinutes = task.endTotalMinutes;
         final viewInsets = MediaQuery.of(context).viewInsets;
         final availableHeight = MediaQuery.of(context).size.height -
             viewInsets.bottom -
@@ -161,67 +132,6 @@ class _TaskDetailOverlayState extends State<TaskDetailOverlay> {
                           CategoryChip(label: 'Personal'),
                           CategoryChip(label: 'Health'),
                         ],
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Schedule',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF8A8A8A),
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () => _pickStartTime(context, task),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('Start',
-                                        style: TextStyle(fontSize: 12)),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _formatTime(context, startMinutes),
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const Text('—'),
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () => _pickEndTime(context, task),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    const Text('End',
-                                        style: TextStyle(fontSize: 12)),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _formatTime(context, endMinutes),
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                       const SizedBox(height: 16),
                       const Text(
