@@ -4,8 +4,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:pdfx/pdfx.dart';
 
+import '../models/note.dart';
 import '../models/pdf_item.dart';
+import '../services/note_pdf_link_service.dart';
+import '../viewmodels/notes_view_model.dart';
 import '../viewmodels/pdf_view_model.dart';
+import 'notes_view.dart';
 
 class PdfView extends StatelessWidget {
   const PdfView({super.key});
@@ -176,6 +180,9 @@ class PdfReaderView extends StatefulWidget {
 
 class _PdfReaderViewState extends State<PdfReaderView> {
   late final PdfControllerPinch _controller;
+  late final NotesViewModel _notesViewModel;
+  late final NotePdfLinkService _linkService;
+  List<String> _linkedNoteIds = [];
 
   @override
   void initState() {
@@ -183,12 +190,109 @@ class _PdfReaderViewState extends State<PdfReaderView> {
     _controller = PdfControllerPinch(
       document: PdfDocument.openFile(widget.item.path),
     );
+    _notesViewModel = NotesViewModel()..initialize();
+    _linkService = NotePdfLinkService();
+    _loadLinkedNotes();
+  }
+
+  Future<void> _loadLinkedNotes() async {
+    final ids = await _linkService.noteIdsForPdf(widget.item.id);
+    if (!mounted) {
+      return;
+    }
+    setState(() => _linkedNoteIds = ids);
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _notesViewModel.dispose();
     super.dispose();
+  }
+
+  Future<void> _openNoteSelector() async {
+    await _notesViewModel.initialize();
+    final selected = [..._linkedNoteIds];
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Not bağla',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_notesViewModel.notes.isEmpty)
+                      const Text('Henüz not yok.'),
+                    if (_notesViewModel.notes.isNotEmpty)
+                      Flexible(
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: _notesViewModel.notes.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final note = _notesViewModel.notes[index];
+                            final isSelected = selected.contains(note.id);
+                            return CheckboxListTile(
+                              value: isSelected,
+                              onChanged: (value) {
+                                setModalState(() {
+                                  if (value == true) {
+                                    selected.add(note.id);
+                                  } else {
+                                    selected.remove(note.id);
+                                  }
+                                });
+                              },
+                              title: Text(
+                                note.title.isEmpty ? 'Başlıksız Not' : note.title,
+                              ),
+                              subtitle: Text(
+                                note.content,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              controlAffinity: ListTileControlAffinity.leading,
+                            );
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          await _linkService.setNoteIdsForPdf(
+                            widget.item.id,
+                            selected,
+                          );
+                          if (mounted) {
+                            setState(() => _linkedNoteIds = [...selected]);
+                          }
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                          }
+                        },
+                        child: const Text('Kaydet'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -197,6 +301,13 @@ class _PdfReaderViewState extends State<PdfReaderView> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.item.name.isEmpty ? 'PDF' : widget.item.name),
+        actions: [
+          IconButton(
+            onPressed: _openNoteSelector,
+            icon: const Icon(Icons.sticky_note_2_outlined),
+            tooltip: 'Notları bağla',
+          ),
+        ],
       ),
       body: exists
           ? PdfViewPinch(
@@ -208,6 +319,66 @@ class _PdfReaderViewState extends State<PdfReaderView> {
                 style: TextStyle(color: Color(0xFF6B6B6B)),
               ),
             ),
+      bottomNavigationBar: AnimatedBuilder(
+        animation: _notesViewModel,
+        builder: (context, _) {
+          final byId = {
+            for (final note in _notesViewModel.notes) note.id: note
+          };
+          final linkedNotes = _linkedNoteIds
+              .map((id) => byId[id])
+              .whereType<Note>()
+              .toList();
+          if (linkedNotes.isEmpty) {
+            return const SizedBox.shrink();
+          }
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF7F4EF),
+              border: Border(
+                top: BorderSide(color: Color(0xFFE6E6E6)),
+              ),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  const Text(
+                    'Notlar:',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(width: 8),
+                  ...linkedNotes.map(
+                    (note) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ActionChip(
+                        label: Text(
+                          note.title.isEmpty ? 'Başlıksız Not' : note.title,
+                        ),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => NoteDetailView(
+                                note: note,
+                                viewModel: _notesViewModel,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _openNoteSelector,
+                    child: const Text('Yönet'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

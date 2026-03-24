@@ -78,8 +78,6 @@ class PlannerViewModel extends ChangeNotifier {
     );
     scheduledTasks = [...scheduledTasks, newTask];
     _storageService.saveScheduledTasks(scheduledTasks);
-    inboxTasks = inboxTasks.where((item) => item.id != task.id).toList();
-    _storageService.saveInboxTasks(inboxTasks);
     notifyListeners();
   }
 

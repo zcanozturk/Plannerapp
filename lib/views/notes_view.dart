@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../models/note.dart';
+import '../models/pdf_item.dart';
+import '../services/note_pdf_link_service.dart';
 import '../viewmodels/notes_view_model.dart';
+import '../viewmodels/pdf_view_model.dart';
+import 'pdf_view.dart';
 
 class NotesView extends StatefulWidget {
   const NotesView({super.key});
@@ -374,6 +378,9 @@ class _NoteDetailBodyState extends State<_NoteDetailBody> {
   late final TextEditingController _contentController;
   late List<String> _selectedTags;
   late Note _currentNote;
+  late final PdfViewModel _pdfViewModel;
+  late final NotePdfLinkService _linkService;
+  List<String> _linkedPdfIds = [];
   bool _isEditing = false;
 
   @override
@@ -383,13 +390,25 @@ class _NoteDetailBodyState extends State<_NoteDetailBody> {
     _contentController = TextEditingController(text: widget.note.content);
     _selectedTags = [...widget.note.tags];
     _currentNote = widget.note;
+    _pdfViewModel = PdfViewModel()..initialize();
+    _linkService = NotePdfLinkService();
+    _loadLinkedPdfs();
     _isEditing = widget.isNew;
+  }
+
+  Future<void> _loadLinkedPdfs() async {
+    final ids = await _linkService.pdfIdsForNote(widget.note.id);
+    if (!mounted) {
+      return;
+    }
+    setState(() => _linkedPdfIds = ids);
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
+    _pdfViewModel.dispose();
     super.dispose();
   }
 
@@ -424,6 +443,84 @@ class _NoteDetailBodyState extends State<_NoteDetailBody> {
   void _deleteNote() {
     widget.viewModel.deleteNote(widget.note.id);
     Navigator.of(context).pop();
+  }
+
+  Future<void> _openPdfSelector() async {
+    await _pdfViewModel.initialize();
+    final selected = [..._linkedPdfIds];
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'PDF bağla',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_pdfViewModel.items.isEmpty)
+                      const Text('Henüz PDF yok.'),
+                    if (_pdfViewModel.items.isNotEmpty)
+                      Flexible(
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: _pdfViewModel.items.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final pdf = _pdfViewModel.items[index];
+                            final isSelected = selected.contains(pdf.id);
+                            return CheckboxListTile(
+                              value: isSelected,
+                              onChanged: (value) {
+                                setModalState(() {
+                                  if (value == true) {
+                                    selected.add(pdf.id);
+                                  } else {
+                                    selected.remove(pdf.id);
+                                  }
+                                });
+                              },
+                              title: Text(pdf.name),
+                              controlAffinity: ListTileControlAffinity.leading,
+                            );
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          await _linkService.setPdfIdsForNote(
+                            widget.note.id,
+                            selected,
+                          );
+                          if (mounted) {
+                            setState(() => _linkedPdfIds = [...selected]);
+                          }
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                          }
+                        },
+                        child: const Text('Kaydet'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -583,6 +680,61 @@ class _NoteDetailBodyState extends State<_NoteDetailBody> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Text(
+                        'İlişkili PDF\'ler',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF8A8A8A),
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: _openPdfSelector,
+                        child: const Text('PDF bağla'),
+                      ),
+                    ],
+                  ),
+                  AnimatedBuilder(
+                    animation: _pdfViewModel,
+                    builder: (context, _) {
+                      final byId = {
+                        for (final item in _pdfViewModel.items)
+                          item.id: item
+                      };
+                      final linkedItems = _linkedPdfIds
+                          .map((id) => byId[id])
+                          .whereType<PdfItem>()
+                          .toList();
+                      return linkedItems.isEmpty
+                          ? const Text(
+                              'Henüz PDF bağlı değil.',
+                              style: TextStyle(color: Color(0xFF6B6B6B)),
+                            )
+                          : Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: linkedItems
+                                  .map(
+                                    (item) => ActionChip(
+                                      label: Text(item.name),
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                PdfReaderView(item: item),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  )
+                                  .toList(),
+                            );
+                    },
                   ),
                   const SizedBox(height: 16),
                   Expanded(
